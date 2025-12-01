@@ -1,10 +1,14 @@
-name: Laravel CI
+name: Laravel CI/CD Pipeline
 
 on:
   push:
     branches: ["main"]
   pull_request:
     branches: ["main"]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   laravel-tests:
@@ -30,8 +34,49 @@ jobs:
       - name: Generar key de Laravel
         run: php artisan key:generate
 
+      - name: Ejecutar Migraciones (Base en memoria)
+        env:
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ":memory:"
+        run: php artisan migrate --force
+
       - name: Ejecutar tests de PHPUnit
         run: php artisan test
 
-      - name: Ejecutar Larastan
+      - name: Ejecutar Larastan (PHPStan)
         run: vendor/bin/phpstan analyse --memory-limit=2G
+
+
+  build-and-publish:
+    needs: laravel-tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v3
+
+      - name: Login en GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Construir imagen Docker
+        run: |
+          docker build -t $REGISTRY/${{ github.repository }}:latest .
+
+      - name: Instalar Trivy
+        run: |
+          sudo apt-get update
+          sudo apt-get install wget -y
+          wget https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.50.0_Linux-64bit.deb
+          sudo dpkg -i trivy_0.50.0_Linux-64bit.deb
+
+      - name: Escanear imagen con Trivy
+        run: |
+          trivy image --exit-code 1 --severity CRITICAL $REGISTRY/${{ github.repository }}:latest
+
+      - name: Publicar imagen a GHCR
+        run: |
+          docker push $REGISTRY/${{ github.repository }}:latest
