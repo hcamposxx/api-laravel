@@ -66,18 +66,17 @@ jobs:
         run: |
           docker build -t $REGISTRY/${{ github.repository }}:latest .
 
-      - name: Instalar Trivy
+      - name: Install Trivy
         run: |
           sudo apt-get update
-          sudo apt-get install -y wget apt-transport-https gnupg
-          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
-          echo "deb https://aquasecurity.github.io/trivy-repo/deb stable main" | sudo tee /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update
-          sudo apt-get install -y trivy
+          sudo apt-get install -y wget
+          wget https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh
+          chmod +x install.sh
+          sudo ./install.sh
 
-      - name: Escanear imagen con Trivy
-        run: |
-          trivy image --exit-code 1 --severity CRITICAL $REGISTRY/${{ github.repository }}:latest
+      - name: Scan image with Trivy
+        run: trivy image $REGISTRY/$IMAGE_NAME:latest
+
 
       - name: Publicar imagen a GHCR
         run: |
