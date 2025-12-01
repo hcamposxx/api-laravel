@@ -74,6 +74,9 @@ jobs:
           chmod +x install.sh
           sudo ./install.sh
 
+      - name: Add Trivy to PATH
+        run: echo "/usr/local/bin" >> $GITHUB_PATH
+
       - name: Scan image with Trivy
         run: trivy image $REGISTRY/$IMAGE_NAME:latest
 
